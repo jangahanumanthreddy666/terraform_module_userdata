@@ -1,0 +1,105 @@
+ec2-temp-late
+===============
+main.tf
+---------
+resource "aws_instance" "demo" {
+    ami = var.ami
+    instance_type = var.type
+    vpc_security_group_ids = ["${aws_security_group.ec2-sg.id}"]
+    key_name = aws_key_pair.ownkey.id
+    user_data  = var.userdata
+}
+
+resource "aws_security_group" "ec2-sg" {
+  name        = "allow_tls"
+  description = "Allow TLS inbound traffic"
+  vpc_id      = var.vpcid
+   
+  ingress {
+    description      = "TLS from VPC"
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]  
+  }
+
+  ingress {
+    description      = "TLS from VPC"
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]  
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]   
+  }
+
+  tags = {
+    Name = "allow_tls"
+  }
+}
+
+resource "aws_key_pair" "ownkey" {
+  key_name   = "ownkey"
+  public_key = var.key
+}
+
+
+
+variable.tf
+----------
+variable "ami" {}
+variable "type" {}
+variable "vpcid" {}
+variable "key" {}
+variable "userdata" {}
+
+
+
+ec2-module
+==============
+userdata.sh
+-------------
+#!/bin/bash
+yum update -y
+yum install httpd -y 
+systemctl enable httpd
+systemctl start httpd
+mkdir -p  /var/www/html/
+echo "this is Mahesh... Test Page....." >/var/www/html/index.html
+
+
+main.tf
+--------
+module "create-ec2" {
+    source = "../ec2-template/"
+    ami = var.ami
+    type = var.type
+    vpcid = var.vpcid
+    key = var.key
+    userdata = data.template_file.userdata.rendered
+} 
+
+data "template_file" "userdata" {
+  template = "${file("userdata.sh")}"  
+}
+
+
+variable.tf
+-------
+variable "ami" {}
+variable "type" {}
+variable "vpcid" {}
+variable "key" {}
+
+
+values.tfvars
+-------------
+ami = "ami-051dfed8f67f095f5"
+type = "t2.micro"
+vpcid = "vpc-07d3a2b7ff50ddba7"
+key = "xxxxxxid_rsa.pub key xxxxx"
